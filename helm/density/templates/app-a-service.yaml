@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+{{- if ($.Values.environment) and eq $.Release.Name $.Values.environment }}
+  name: "{{ $.Values.environment }}-svc"
+{{- else if (eq $.Release.Name "dev-density") }}
+  name: "{{ $.Release.Name }}-svc"
+{{- else }}
+  name: "{{ $.Release.Name }}-{{ $.Values.app_a.name }}-svc"
+{{- end }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "density.name" . }}
+    helm.sh/chart: {{ include "density.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/part-of: {{ .Values.app_a.name }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.http_port }}
+      targetPort: {{ .Values.app_a.port }}
+      protocol: {{ .Values.protocol }}
+      name: http
+  selector:
+    application: {{ .Values.app_a.name }}

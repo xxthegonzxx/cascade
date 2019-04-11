@@ -1,0 +1,66 @@
+# Default values for density application.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+environment: stg-density-app
+env: stg
+http_port: 80
+protocol: TCP
+hostname: density.stg
+namespace: density-namespace
+imagePull: secretcred
+
+service:
+  type: ClusterIP
+
+# app_a Configuration ENV VARS
+app_a:
+  name: "frontend"
+  port: 5000
+  replicaCount: 4
+  repository: docker-registry-here/density-app-a
+  tag: latest
+  pullPolicy: Always
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      memory: 256Mi
+  env:
+    ENV1: Value1
+    ENV2: Value2
+    ENV3: Value3
+
+# app_b Configuration ENV VARS
+app_b:
+  name: "backend"
+  port: 5001
+  replicaCount: 2
+  repository: docker-registry-here/density-app-a
+  tag: latest
+  pullPolicy: Always
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      memory: 256Mi
+  env:
+    ENV1: Value1
+    ENV2: Value2
+    ENV3: Value3
+
+ingress:
+  enabled: true
+    # kubernetes.io/tls-acme: "true"
+  path: /
+  hosts:
+    -
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

@@ -1,0 +1,196 @@
+version: '1.0'
+mode: parallel
+stages:
+  - build
+  - Testing
+  - securityScan
+  - push
+  - push_helm
+  - helm_ci_dev
+  - helm_ci_staging
+steps:
+  git_validate_repo_history:
+    title: Validate Git Repo History
+    stage: build
+    image: registry/git-image:latest
+    working_directory: ${{main_clone}}
+    commands:
+      - bash -c "git branch"
+      - bash -c "chmod +x ./scripts/GitHistoryCheck.sh"
+      - bash -c "./scripts/GitHistoryCheck.sh master"
+    when:
+      condition:
+        all:
+          masterBranch: '"${{CI_BRANCH}}" != "master"'
+      steps:
+        - name: main_clone
+          on:
+            - success
+    fail_fast: true
+
+  buildimage:
+    type: build
+    stage: build
+    title: Build Runtime Image
+    dockerfile: Dockerfile
+    image_name: registry/density-application-a-b
+    tag: latest-ci-build-candidate
+    build_arguments:
+      # Array of arguments
+    when:
+      steps:
+        - name: git_validate_repo_history
+          on:
+            - success
+
+  run_testing:
+    title: Run Unit Test
+    stage: Testing
+    type: composition
+    composition:
+      version: '2'
+      services:
+        app_a:
+          image: registry/density-application-a:latest
+          environment:
+            # Array of environment variables here
+          expose:
+            - "5000"
+        app_b:
+          image: registry/density-application-b:latest
+          environment:
+            # Array of environment variables here
+          expose:
+            - "5001"
+
+  security_scans_here:
+    type: composition
+    stage: securityScan
+    composition:
+      version: '2'
+      services:
+        imagebuild:
+          image: ${{buildimage}}
+          command: sh -c "exit 0"
+          labels:
+            build.image.id: ${{CI_BUILD_ID}}
+    composition_candidates:
+      scan_service:
+        image: registry/security-tools:latest
+        environment:
+          # Array of env vars
+        command: scan-image-directive-here
+        depends_on:
+          - imagebuild
+        volumes:
+          - /var/run/docker.sock:/var/run/docker.sock
+          - /var/lib/docker:/var/lib/docker
+    when:
+      steps:
+        - name: run_grunt
+          on:
+            - success
+    fail_fast: true
+
+  push_image_latest:
+    title: Push to Docker Hub (latest)
+    stage: push
+    type: push
+    candidate: ${{buildimage}}
+    tag: latest
+    when:
+      branch:
+        only:
+          - master
+      steps:
+        - name: security_scans_here
+          on:
+            - success
+
+  push_image_latest_tagged:
+    title: Push to Docker Hub (latest+tagged)
+    stage: push
+    type: push
+    candidate: ${{buildimage}}
+    tag: latest-${{CI_SHORT_REVISION}}
+    when:
+      branch:
+        only:
+          - master
+      steps:
+        - name: security_scans_here
+          on:
+            - success
+
+  push_image_tagged:
+    title: Push to Docker Hub (tagged)
+    stage: push
+    type: push
+    candidate: ${{buildimage}}
+    tag: ${{CI_BRANCH_TAG_NORMALIZED}}-${{CI_SHORT_REVISION}}
+    when:
+      steps:
+        - name: security_scans_here
+          on:
+            - success
+
+  push_helm:
+    title: package helm artifact
+    stage: push_helm
+    image: registry/ci-helm-image:2.9.0
+    environment:
+      - ACTION=push
+      - CHART_REF=./helm/density
+    when:
+      steps:
+        - name: run_testing
+          on:
+            - success
+        - name: security_scans_here
+          on:
+            - success
+        - name: push_image_latest_tagged
+          on:
+            - success
+
+  deploy-dev:
+    title: deploy helm to dev
+    stage: helm_ci_dev
+    image: registry/ci-helm-image:2.9.0
+    environment:
+      - CHART_REF=./helm/density
+      - RELEASE_NAME=${{ENVIRONMENT}}-density
+      - NAMESPACE=${{NAMESPACE}}
+      - KUBE_CONTEXT=${{DEV_KUBE_CONTEXT}}
+      - value_image_tag=${{CI_BRANCH_TAG_NORMALIZED}}-${{CI_SHORT_REVISION}}
+    when:
+      branch:
+        only:
+          - master
+      steps:
+        - name: push_helm
+          on:
+            - success
+
+  deploy-stg:
+    title: deploy helm to staging
+    stage: helm_ci_staging
+    image: registry/ci-helm-image:2.9.0
+    environment:
+      - CHART_REF=./helm/density
+      - RELEASE_NAME=${{STG_ENVIRONMENT}}-density
+      - NAMESPACE=${{STG_NAMESPACE}}
+      - KUBE_CONTEXT=${{STG_KUBE_CONTEXT}}
+      - VALUESFILE_STG="density/stg-values.yaml"
+      - value_image_tag=${{CI_BRANCH_TAG_NORMALIZED}}-${{CI_SHORT_REVISION}}
+    when:
+      branch:
+        only:
+          - master
+      steps:
+        - name: push_image_tagged
+          on:
+            - success
+        - name: deploy-dev
+          on:
+            - success

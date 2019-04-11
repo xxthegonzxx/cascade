@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+{{- if ($.Values.environment) and eq $.Release.Name $.Values.environment }}
+  name: "{{ $.Values.environment }}-deploy"
+{{- else if (eq $.Release.Name "dev-density") }}
+  name: "{{ $.Release.Name }}-deploy"
+{{- else }}
+{{- end }}
+  name: "{{ $.Release.Name }}-{{ $.Values.app_b.name }}-deploy"
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "density.name" . }}
+    application: {{ .Values.app_b.name }}
+    helm.sh/chart: {{ include "density.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/part-of: {{ .Values.app_b.name }}
+spec:
+  replicas: {{ .Values.app_b.replicaCount }}
+  selector:
+    matchLabels:
+      application: {{ .Values.app_b.name }}
+      app.kubernetes.io/name: {{ include "density.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/managed-by: {{ .Release.Service }}
+      app.kubernetes.io/part-of: {{ .Values.app_b.name }}
+  template:
+    metadata:
+      labels:
+        application: {{ .Values.app_b.name }}
+        app.kubernetes.io/name: {{ include "density.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+        app.kubernetes.io/part-of: {{ .Values.app_b.name }}
+        helm.sh/chart: {{ include "density.chart" . }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.app_b.repository }}:{{ .Values.app_b.tag }}"
+          imagePullPolicy: {{ .Values.app_b.pullPolicy }}
+          resources:
+            requests:
+              memory: {{ .Values.app_b.resources.requests.memory | quote }}
+            limits: 
+              memory: {{ .Values.app_b.resources.limits.memory | quote }}
+          env:
+          {{- include "app_b.cm_template" . | indent 2 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app_b.port }}
+              protocol: {{ .Values.protocol }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthcheck_path }}
+              port: {{ .Values.app_b.port }}
+            periodSeconds: {{ .Values.liveness_period_seconds }}
+            failureThreshold: {{ .Values.liveness_failure_threshold }}
+            timoutSeconds: {{ .Values.liveness_timeout_seconds }}
+            initialDelaySeconds: {{ .Values.liveness_initial_delay_seconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthcheck_path }}
+              port: {{ .Values.app_b.port }}
+            successThreshold: {{ .Values.readiness_success_threshold }}
+            initialDelaySeconds: {{ .Values.readiness_initial_delay_seconds }}
+      imagePullSecrets:
+      - name: {{ .Values.imagePull }}

@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+{{- if ($.Values.environment) and eq $.Release.Name $.Values.environment }}
+  name: "{{ $.Values.environment }}-cm"
+{{- else if (eq $.Release.Name "dev-density") }}
+  name: "{{ $.Release.Name }}-cm"
+{{- else }}
+  name: "{{ $.Release.Name }}-{{ $.Values.app_b.name }}-cm"
+{{- end }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    application: {{ .Values.app_b.name }}
+    helm.sh/chart: {{ include "density.chart" . }}
+    app.kubernetes.io/name: {{ include "density.name" . }}
+    app.kubernetes.io/part-of: {{ .Values.app_b.name }}
+data:
+  {{- range $key, $value := $.Values.app_b.env }}
+    {{ $key }}: {{ $value | quote }}
+  {{- end }}
