@@ -1,4 +1,4 @@
-# Density DevOps Homework Assignment
+# DevOps Homework Assignment
 
 ## Goal
 Your goal is to illustrate how you would deploy and scale two applications (App A and App B) to incoming requests. 
@@ -24,7 +24,6 @@ Create a new repo using your Github account with a unique name and send us the f
 
 ## Notes
 
-- Please do not fork or submit a PR to this repo
 - Please document your thought-processes and use well-written git commit messages to show your progress
 - Feel free to change the python application and its requirements in any way you see fit
 - We are purposefully not being overly prescriptive in this assignment, as we want you to think creatively about the solution
